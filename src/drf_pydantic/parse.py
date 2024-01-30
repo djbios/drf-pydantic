@@ -10,6 +10,7 @@ from enum import Enum
 import pydantic
 
 from rest_framework import serializers
+from django.db.models.enums import TextChoices
 from drf_pydantic.fields import EnumField
 
 # Cache serializer classes to ensure that there is a one-to-one relationship
@@ -31,7 +32,7 @@ FIELD_MAP: dict[type, type[serializers.Field]] = {
     # Numeric fields
     int: serializers.IntegerField,
     float: serializers.FloatField,
-    decimal.Decimal: serializers.DecimalField,
+    pydantic.ConstrainedDecimal: serializers.DecimalField,
     # Date and time fields
     datetime.date: serializers.DateField,
     datetime.time: serializers.TimeField,
@@ -41,7 +42,10 @@ FIELD_MAP: dict[type, type[serializers.Field]] = {
     pydantic.ConstrainedStr: serializers.CharField,
     pydantic.ConstrainedInt: serializers.IntegerField,
     # Enum fields
-    Enum: EnumField
+    Enum: EnumField,
+    TextChoices: EnumField,
+    # Dict field
+    dict: serializers.DictField,
 }
 
 
@@ -130,6 +134,13 @@ def _convert_field(field: pydantic.fields.ModelField) -> serializers.Field:
         field.type_, Enum
     ):
         extra_kwargs['enum'] = field.type_
+
+    # Decimal field
+    if inspect.isclass(field.type_) and issubclass(
+            field.type_, pydantic.types.ConstrainedDecimal
+    ):
+        extra_kwargs["max_digits"] = field.type_.max_digits
+        extra_kwargs["decimal_places"] = field.type_.decimal_places
 
     # Scalar field
     if field.outer_type_ is field.type_:
